@@ -192,7 +192,7 @@ header h1{font-size:17px;font-weight:600;}
 <body>
 <div class="safe-top"></div>
 <header>
-  <div style="font-size:12px;color:var(--text2)">投資組合 <span style="font-size:10px;color:var(--text3)">v1.4</span></div>
+  <div style="font-size:12px;color:var(--text2)">投資組合 <span style="font-size:10px;color:var(--text3)">v1.5</span></div>
   <h1 id="page-title">資產總覽</h1>
   <div class="utime" id="utime"></div>
 </header>
@@ -318,6 +318,7 @@ header h1{font-size:17px;font-weight:600;}
         <select id="f-cur" onchange="updateLabels();calcAvg()">
           <option value="TWD">TWD 台幣</option>
           <option value="USD">USD 美元</option>
+          <option value="TWD_US">TWD 複委託（成本台幣／報價美元）</option>
         </select>
       </div>
       <div class="field">
@@ -444,14 +445,24 @@ function updateFxUI(){
   }
 }
 
-function toTWD(amount,cur){return cur==='TWD'?amount:amount*(fx.USD||32.5);}
+function toTWD(amount,cur){
+  if(cur==='TWD'||cur==='TWD_US') return amount;
+  return amount*(fx.USD||32.5);
+}
 function getVal(h){
-  const price=h.mp!=null?h.mp:h.cost;
-  const mv=toTWD(price*h.qty,h.cur);
-  const ct=toTWD(h.cost*h.qty,h.cur);
-  const hasMp=h.mp!=null;
-  const pnl=hasMp?mv-ct:null;
-  const pnlPct=(hasMp&&ct>0)?pnl/ct*100:null;
+  let mv, ct, price;
+  ct = toTWD(h.cost*h.qty, h.cur);
+  if(h.cur==='TWD_US'){
+    // cost in TWD, market price in USD -> convert to TWD
+    price = h.mp!=null ? h.mp : null;
+    mv = price!=null ? price*(fx.USD||32.5)*h.qty : ct;
+  } else {
+    price = h.mp!=null ? h.mp : h.cost;
+    mv = toTWD(price*h.qty, h.cur);
+  }
+  const hasMp = h.mp!=null;
+  const pnl = hasMp ? mv-ct : null;
+  const pnlPct = (hasMp&&ct>0) ? pnl/ct*100 : null;
   return{mv,ct,pnl,pnlPct,price,hasMp};
 }
 function fmtTWD(n){
@@ -461,7 +472,8 @@ function fmtTWD(n){
   return 'NT$'+Math.round(n).toLocaleString();
 }
 function fmtL(p,cur){
-  if(cur==='USD')return 'US$'+p.toFixed(2);
+  if(cur==='USD') return 'US$'+p.toFixed(2);
+  if(cur==='TWD_US') return 'US$'+p.toFixed(2);
   return 'NT$'+p.toFixed(2);
 }
 function sign(v){return v>0?'+':'';}
@@ -522,12 +534,12 @@ function render(){
     lH+=`<div data-id="${h.id}"><div class="hrow" onclick="toggleD(${h.id})">
       <div class="drag-handle" onclick="event.stopPropagation()">⠿</div>
       <div class="badge ${CAT[h.type].badge}">${CAT[h.type].name}</div>
-      <div class="hinfo"><div class="hname">${h.name||h.sym}${failTag}</div><div class="hsub">${h.sym}${qStr?' · '+qStr:''} · ${h.cur}</div></div>
+      <div class="hinfo"><div class="hname">${h.name||h.sym}${failTag}</div><div class="hsub">${h.sym}${qStr?' · '+qStr:''} · ${h.cur==='TWD_US'?'複委託':h.cur}</div></div>
       <div class="hright"><div class="hval">${vStr}</div><div class="hpnl ${pCl}" style="font-size:11px">${pStr}</div></div>
     </div>
     <div class="detail" id="d${h.id}">
       <div class="dgrid">
-        <div class="ditem"><label>成本均價</label><span>${fmtL(h.cost,h.cur)}</span></div>
+        <div class="ditem"><label>成本均價</label><span>${h.cur==='TWD_US'?fmtTWD(h.cost):fmtL(h.cost,h.cur)}</span></div>
         <div class="ditem"><label>目前市價</label><span>${h.mp!=null?fmtL(h.mp,h.cur):'未設定'}</span></div>
         <div class="ditem"><label>持有數量</label><span>${h.type==='cash'?fmtL(h.cost,h.cur):Number(h.qty).toLocaleString()+' 股'}</span></div>
         <div class="ditem"><label>投入成本(TWD)</label><span>${fmtTWD(v.ct)}</span></div>
@@ -660,14 +672,20 @@ function saveTargets(){
 // ── Modal ──
 function updateLabels(){
   const cur=document.getElementById('f-cur').value;
-  document.getElementById('lbl-tc').textContent='總成本（'+cur+'）';
-  document.getElementById('lbl-mp').textContent='目前市價（'+cur+' / 股，選填）';
+  if(cur==='TWD_US'){
+    document.getElementById('lbl-tc').textContent='總成本（TWD 台幣）';
+    document.getElementById('lbl-mp').textContent='目前市價（USD 美元 / 股，選填）';
+  } else {
+    document.getElementById('lbl-tc').textContent='總成本（'+cur+'）';
+    document.getElementById('lbl-mp').textContent='目前市價（'+cur+' / 股，選填）';
+  }
 }
 function calcAvg(){
   const qty=parseFloat(document.getElementById('f-qty').value);
   const tot=parseFloat(document.getElementById('f-tc').value);
   const cur=document.getElementById('f-cur').value;
-  document.getElementById('hint-avg').innerHTML=(qty>0&&tot>0)?'均價：<span>'+fmtL(tot/qty,cur)+'</span>':'';
+  const avgFmt = cur==='TWD_US' ? fmtTWD(tot/qty) : fmtL(tot/qty,cur);
+  document.getElementById('hint-avg').innerHTML=(qty>0&&tot>0)?'均價：<span>'+avgFmt+'</span>':'';
   calcPnl();
 }
 function calcPnl(){
@@ -677,9 +695,18 @@ function calcPnl(){
   const cur=document.getElementById('f-cur').value;
   const el=document.getElementById('hint-pnl');
   if(qty>0&&tot>0&&mp>0){
-    const cost=tot/qty,pnl=(mp-cost)*qty,pct=(mp-cost)/cost*100;
+    let pnl,pct,pnlFmt;
+    if(cur==='TWD_US'){
+      const mvTWD=mp*(fx.USD||32.5)*qty;
+      pnl=mvTWD-tot; pct=pnl/tot*100;
+      pnlFmt=sign(pnl)+fmtTWD(pnl);
+    } else {
+      const cost=tot/qty;
+      pnl=(mp-cost)*qty; pct=(mp-cost)/(tot/qty)*100;
+      pnlFmt=sign(pnl)+fmtL(pnl,cur);
+    }
     const cls=pnl>0?'pos':pnl<0?'neg':'';
-    el.innerHTML='損益：<span class="'+cls+'">'+sign(pnl)+fmtL(pnl,cur)+'（'+sign(pct)+pct.toFixed(2)+'%）</span>';
+    el.innerHTML='損益：<span class="'+cls+'">'+pnlFmt+'（'+sign(pct)+pct.toFixed(2)+'%）</span>';
   }else{el.innerHTML='';}
 }
 function onTypeChange(){
@@ -725,6 +752,7 @@ function saveH(){
     const mp=mpRaw!==''?parseFloat(mpRaw):null;
     const cur=document.getElementById('f-cur').value;
     if(!sym||isNaN(qty)||qty<=0||isNaN(tot)||tot<=0){alert('請填寫代號、持股數量與總成本');return;}
+    // TWD_US: store cost as total TWD / qty (TWD per share)
     h={type:t,sym,name:name||sym,qty,cost:tot/qty,mp:(mp>0?mp:null),cur};
   }
   if(editId){
@@ -954,7 +982,7 @@ async function fetchAllPrices(){
   const failed = [];
   for(const h of stocks){
     try{
-      const market = h.cur === 'TWD' ? 'tw' : 'us';
+      const market = (h.cur === 'TWD' || h.cur === 'TWD_US') ? (h.cur === 'TWD_US' ? 'us' : 'tw') : 'us';
       const r = await fetch(`${API_BASE}/api/quote?symbol=${h.sym}&market=${market}`);
       const d = await r.json();
       if(d.price){
