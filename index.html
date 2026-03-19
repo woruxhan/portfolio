@@ -192,7 +192,7 @@ header h1{font-size:17px;font-weight:600;}
 <body>
 <div class="safe-top"></div>
 <header>
-  <div style="font-size:12px;color:var(--text2)">投資組合 <span style="font-size:10px;color:var(--text3)">v1.3</span></div>
+  <div style="font-size:12px;color:var(--text2)">投資組合 <span style="font-size:10px;color:var(--text3)">v1.4</span></div>
   <h1 id="page-title">資產總覽</h1>
   <div class="utime" id="utime"></div>
 </header>
@@ -232,6 +232,13 @@ header h1{font-size:17px;font-weight:600;}
 
 <!-- PAGE: 設定 -->
 <div class="page" id="page-settings">
+  <div class="stitle">報價</div>
+  <button class="setbtn" id="rbtn" onclick="fetchAllPrices()">
+    <div class="setbtn-icon" style="background:#dbeafe;" id="rbicon">↻</div>
+    <span id="rbtext">更新所有持倉報價</span>
+  </button>
+  <div class="utime" id="quote-status" style="margin:-4px 0 8px 4px;font-size:12px;color:var(--text3);"></div>
+
   <div class="stitle">匯率</div>
   <div class="card" style="padding:14px 16px;">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -926,6 +933,46 @@ function parseCSV(text){
     row.push(cur);rows.push(row);
   }
   return rows;
+}
+
+
+const API_BASE = 'https://portfolio-api-khaki-chi.vercel.app';
+let quoteBusy = false;
+
+async function fetchAllPrices(){
+  if(quoteBusy) return;
+  quoteBusy = true;
+  const btn = document.getElementById('rbtn');
+  btn.classList.add('busy');
+  document.getElementById('rbicon').innerHTML = '<span class="rspin"></span>';
+  document.getElementById('rbtext').textContent = '更新中...';
+
+  const stocks = holdings.filter(h => h.type !== 'cash');
+  let ok = 0;
+
+  for(const h of stocks){
+    try{
+      const market = h.cur === 'TWD' ? 'tw' : 'us';
+      const r = await fetch(`${API_BASE}/api/quote?symbol=${h.sym}&market=${market}`);
+      const d = await r.json();
+      if(d.price){
+        h.mp = d.price;
+        ok++;
+      }
+    }catch(e){}
+    await new Promise(res => setTimeout(res, 200));
+  }
+
+  saveD(); render();
+
+  const now = new Date();
+  document.getElementById('quote-status').textContent =
+    pad(now.getHours())+':'+pad(now.getMinutes())+' 更新　'+ok+'/'+stocks.length+' 筆成功';
+
+  btn.classList.remove('busy');
+  document.getElementById('rbicon').textContent = '↻';
+  document.getElementById('rbtext').textContent = '更新所有持倉報價';
+  quoteBusy = false;
 }
 
 load();render();renderFX();fetchFX();initDrag();
