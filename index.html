@@ -518,10 +518,11 @@ function render(){
     const pStr=v.pnl!=null?sign(v.pnl)+fmtTWD(v.pnl)+'　'+sign(v.pnlPct)+v.pnlPct.toFixed(2)+'%':'輸入市價後顯示';
     const pCl=v.pnl!=null?pCls(v.pnl):'';
     const qStr=h.type!=='cash'?Number(h.qty).toLocaleString()+' 股':'';
+    const failTag=h._quoteOk===false?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 5px;margin-left:4px;">報價失敗</span>':'';
     lH+=`<div data-id="${h.id}"><div class="hrow" onclick="toggleD(${h.id})">
       <div class="drag-handle" onclick="event.stopPropagation()">⠿</div>
       <div class="badge ${CAT[h.type].badge}">${CAT[h.type].name}</div>
-      <div class="hinfo"><div class="hname">${h.name||h.sym}</div><div class="hsub">${h.sym}${qStr?' · '+qStr:''} · ${h.cur}</div></div>
+      <div class="hinfo"><div class="hname">${h.name||h.sym}${failTag}</div><div class="hsub">${h.sym}${qStr?' · '+qStr:''} · ${h.cur}</div></div>
       <div class="hright"><div class="hval">${vStr}</div><div class="hpnl ${pCl}" style="font-size:11px">${pStr}</div></div>
     </div>
     <div class="detail" id="d${h.id}">
@@ -950,6 +951,7 @@ async function fetchAllPrices(){
   const stocks = holdings.filter(h => h.type !== 'cash');
   let ok = 0;
 
+  const failed = [];
   for(const h of stocks){
     try{
       const market = h.cur === 'TWD' ? 'tw' : 'us';
@@ -957,17 +959,29 @@ async function fetchAllPrices(){
       const d = await r.json();
       if(d.price){
         h.mp = d.price;
+        h._quoteOk = true;
         ok++;
+      } else {
+        h._quoteOk = false;
+        failed.push(h.sym);
       }
-    }catch(e){}
+    }catch(e){
+      h._quoteOk = false;
+      failed.push(h.sym);
+    }
     await new Promise(res => setTimeout(res, 200));
   }
 
   saveD(); render();
 
   const now = new Date();
-  document.getElementById('quote-status').textContent =
-    pad(now.getHours())+':'+pad(now.getMinutes())+' 更新　'+ok+'/'+stocks.length+' 筆成功';
+  const timeStr = pad(now.getHours())+':'+pad(now.getMinutes());
+  const statusEl = document.getElementById('quote-status');
+  if(failed.length){
+    statusEl.innerHTML = timeStr+' 更新　<span style="color:var(--neg)">'+ok+'/'+stocks.length+' 筆成功，失敗：'+failed.join('、')+'</span>';
+  } else {
+    statusEl.innerHTML = timeStr+' 更新　<span style="color:var(--pos)">全部成功 ✓</span>';
+  }
 
   btn.classList.remove('busy');
   document.getElementById('rbicon').textContent = '↻';
