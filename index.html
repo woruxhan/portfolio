@@ -192,7 +192,7 @@ header h1{font-size:17px;font-weight:600;}
 <body>
 <div class="safe-top"></div>
 <header>
-  <div style="font-size:12px;color:var(--text2)">投資組合 <span style="font-size:10px;color:var(--text3)">v1.5</span></div>
+  <div style="font-size:12px;color:var(--text2)">投資組合 <span style="font-size:10px;color:var(--text3)">v1.6</span></div>
   <h1 id="page-title">資產總覽</h1>
   <div class="utime" id="utime"></div>
 </header>
@@ -980,9 +980,9 @@ async function fetchAllPrices(){
   let ok = 0;
 
   const failed = [];
-  for(const h of stocks){
+  await Promise.all(stocks.map(async h => {
     try{
-      const market = (h.cur === 'TWD' || h.cur === 'TWD_US') ? (h.cur === 'TWD_US' ? 'us' : 'tw') : 'us';
+      const market = h.cur === 'TWD_US' ? 'us' : (h.cur === 'TWD' ? 'tw' : 'us');
       const r = await fetch(`${API_BASE}/api/quote?symbol=${h.sym}&market=${market}`);
       const d = await r.json();
       if(d.price){
@@ -997,8 +997,7 @@ async function fetchAllPrices(){
       h._quoteOk = false;
       failed.push(h.sym);
     }
-    await new Promise(res => setTimeout(res, 200));
-  }
+  }));
 
   saveD(); render();
 
