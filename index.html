@@ -74,6 +74,7 @@ header h1{font-size:17px;font-weight:600;}
 .stitle{font-size:12px;font-weight:600;color:var(–text2);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 8px;}
 .stitle:first-child{margin-top:0;}
 .card{background:var(–card);border-radius:16px;overflow:hidden;margin-bottom:10px;}
+.alloc-card{overflow:hidden;}
 
 /* alloc */
 .awrap{padding:0;}
@@ -215,7 +216,7 @@ header h1{font-size:17px;font-weight:600;}
     </div>
   </div>
   <div class="stitle">配置比例</div>
-  <div class="card"><div class="awrap" id="alloc"><div class="empty">尚無資料</div></div></div>
+  <div class="card alloc-card"><div class="awrap" id="alloc"><div class="empty">尚無資料</div></div></div>
   <div class="stitle">持倉明細</div>
   <div class="card" id="hlist"><div class="empty">點擊下方新增持倉</div></div>
   <button class="addbtn" onclick="openModal()"><span style="font-size:20px;font-weight:300">+</span> 新增持倉</button>
@@ -525,7 +526,7 @@ function render(){
     byT[h.type]=(byT[h.type]||0)+vals[h.id].mv;
     byCost[h.type]=(byCost[h.type]||0)+vals[h.id].ct;
   });
-  let aH='';
+  let aH='', catRows=[];
   // column headers
   aH+=`<div style="display:flex;align-items:center;padding:5px 14px 5px 30px;gap:8px;">
     <div style="flex:1;font-size:11px;color:var(--text3)">類別</div>
@@ -536,16 +537,19 @@ function render(){
   Object.keys(CAT).forEach(t=>{
     if(!byT[t])return;
     const pct=tMV>0?byT[t]/tMV*100:0;
-    aH+=`<div style="display:flex;align-items:center;padding:10px 14px;gap:8px;border-bottom:.5px solid var(--border);">
+    catRows.push(`<div style="display:flex;align-items:center;padding:10px 14px;gap:8px;border-bottom:.5px solid var(--border);">
       <div class="adot" style="background:${CAT[t].color};flex-shrink:0"></div>
       <div style="flex:1;font-size:14px;color:var(--text)">${CAT[t].name}</div>
       <div style="width:68px;text-align:right;font-size:13px;color:var(--text)">${fmtTWD(byT[t])}</div>
       <div style="width:68px;text-align:right;font-size:13px;color:var(--text2)">${fmtTWD(byCost[t]||0)}</div>
       <div style="width:30px;text-align:right;font-size:13px;color:var(--text2)">${pct.toFixed(0)}%</div>
-    </div>`;
+    </div>`);
   });
+  // join rows removing last border-bottom
+  if(catRows.length) catRows[catRows.length-1]=catRows[catRows.length-1].replace('border-bottom:.5px solid var(--border)','border-bottom:none');
+  aH+=catRows.join('');
   // total row
-  aH+=`<div style="display:flex;align-items:center;padding:10px 14px;gap:8px;background:var(--card2);">
+  aH+=`<div style="display:flex;align-items:center;padding:10px 14px;gap:8px;border-top:.5px solid var(--border);background:var(--card2);">
     <div style="width:8px;flex-shrink:0"></div>
     <div style="flex:1;font-size:13px;font-weight:500;color:var(--text2)">合計</div>
     <div style="width:68px;text-align:right;font-size:13px;font-weight:500;color:var(--text)">${fmtTWD(tMV)}</div>
