@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Portfolio">
-<title>Portfolio</title>
+<meta name="apple-mobile-web-app-title" content="我的投資組合">
+<title>我的投資組合</title>
 <script>
 (function(){
   var c=document.createElement('canvas');
@@ -74,16 +74,15 @@ header h1{font-size:17px;font-weight:600;}
 .stitle:first-child{margin-top:0;}
 .card{background:var(--card);border-radius:16px;overflow:hidden;margin-bottom:10px;}
 
-/* alloc — 無長條圖，顯示數字比例＋成本/市值 */
-.awrap{padding:12px 16px;}
-.arow{display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:0 2px;}
+/* alloc */
+.awrap{padding:14px 16px;}
+.arow{display:flex;align-items:center;gap:10px;margin-bottom:9px;}
 .arow:last-child{margin-bottom:0;}
 .adot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
-.aname{font-size:13px;font-weight:500;width:52px;flex-shrink:0;}
-.apct{font-size:14px;font-weight:600;width:40px;flex-shrink:0;}
-.avals{flex:1;display:flex;flex-direction:column;align-items:flex-end;gap:1px;}
-.aval-mv{font-size:13px;color:var(--text);}
-.aval-ct{font-size:11px;color:var(--text3);}
+.aname{font-size:13px;width:68px;flex-shrink:0;}
+.abg{flex:1;height:5px;background:var(--card2);border-radius:3px;overflow:hidden;}
+.abar{height:100%;border-radius:3px;transition:width .5s;}
+.apct{font-size:13px;color:var(--text2);width:36px;text-align:right;}
 
 /* holdings */
 .hrow{display:flex;align-items:center;padding:13px 16px;gap:12px;cursor:pointer;border-bottom:.5px solid var(--border);-webkit-user-select:none;}
@@ -193,7 +192,7 @@ header h1{font-size:17px;font-weight:600;}
 <body>
 <div class="safe-top"></div>
 <header>
-  <div style="font-size:12px;color:var(--text2)">投資組合 <span style="font-size:10px;color:var(--text3)">v1.7</span></div>
+  <div style="font-size:12px;color:var(--text2)">投資組合 <span style="font-size:10px;color:var(--text3)">v1.6</span></div>
   <h1 id="page-title">資產總覽</h1>
   <div class="utime" id="utime"></div>
 </header>
@@ -454,6 +453,7 @@ function getVal(h){
   let mv, ct, price;
   ct = toTWD(h.cost*h.qty, h.cur);
   if(h.cur==='TWD_US'){
+    // cost in TWD, market price in USD -> convert to TWD
     price = h.mp!=null ? h.mp : null;
     mv = price!=null ? price*(fx.USD||32.5)*h.qty : ct;
   } else {
@@ -513,27 +513,13 @@ function render(){
     document.getElementById('sv-pct').textContent='輸入市價後顯示';
   }
 
-  // 各類別市值與成本
-  const byMV={};
-  const byCt={};
-  holdings.forEach(h=>{
-    byMV[h.type]=(byMV[h.type]||0)+vals[h.id].mv;
-    byCt[h.type]=(byCt[h.type]||0)+vals[h.id].ct;
-  });
-
+  const byT={};
+  holdings.forEach(h=>{byT[h.type]=(byT[h.type]||0)+vals[h.id].mv;});
   let aH='';
   Object.keys(CAT).forEach(t=>{
-    if(!byMV[t])return;
-    const pct=tMV>0?byMV[t]/tMV*100:0;
-    aH+=`<div class="arow">
-      <div class="adot" style="background:${CAT[t].color}"></div>
-      <div class="aname">${CAT[t].name}</div>
-      <div class="apct" style="color:${CAT[t].color}">${pct.toFixed(0)}%</div>
-      <div class="avals">
-        <div class="aval-mv">市值 ${fmtTWD(byMV[t])}</div>
-        <div class="aval-ct">成本 ${fmtTWD(byCt[t]||0)}</div>
-      </div>
-    </div>`;
+    if(!byT[t])return;
+    const pct=tMV>0?byT[t]/tMV*100:0;
+    aH+=`<div class="arow"><div class="adot" style="background:${CAT[t].color}"></div><div class="aname">${CAT[t].name}</div><div class="abg"><div class="abar" style="width:${pct.toFixed(1)}%;background:${CAT[t].color}"></div></div><div class="apct">${pct.toFixed(0)}%</div></div>`;
   });
   document.getElementById('alloc').innerHTML=aH||'<div class="empty">尚無資料</div>';
 
@@ -575,6 +561,7 @@ function toggleD(id){
 
 // ── Render target page ──
 function renderTarget(){
+  // calc cost by type
   let totalCost=0;
   const byCost={};
   holdings.forEach(h=>{
@@ -583,6 +570,7 @@ function renderTarget(){
     totalCost+=ct;
   });
 
+  // alert
   const alertWrap=document.getElementById('alert-wrap');
   const overList=[],underList=[];
   Object.keys(CAT).forEach(t=>{
@@ -601,6 +589,7 @@ function renderTarget(){
     alertWrap.innerHTML=`<div class="alert-banner ok"><div class="alert-icon">✅</div><div class="alert-text ok"><strong>配置符合目標</strong>　所有類別偏離均在 ${cfg.threshold}% 以內</div></div>`;
   }
 
+  // compare bars
   let cH='';
   Object.keys(CAT).forEach(t=>{
     const actual=totalCost>0?(byCost[t]||0)/totalCost*100:0;
@@ -622,6 +611,7 @@ function renderTarget(){
   });
   document.getElementById('compare-list').innerHTML=cH||'<div class="empty">尚無資料</div>';
 
+  // rebalance (cost-based)
   let rH='';
   const hasAnyTarget=Object.values(targets).some(v=>v>0);
   if(!hasAnyTarget||totalCost===0){
@@ -762,6 +752,7 @@ function saveH(){
     const mp=mpRaw!==''?parseFloat(mpRaw):null;
     const cur=document.getElementById('f-cur').value;
     if(!sym||isNaN(qty)||qty<=0||isNaN(tot)||tot<=0){alert('請填寫代號、持股數量與總成本');return;}
+    // TWD_US: store cost as total TWD / qty (TWD per share)
     h={type:t,sym,name:name||sym,qty,cost:tot/qty,mp:(mp>0?mp:null),cur};
   }
   if(editId){
@@ -972,6 +963,7 @@ function parseCSV(text){
   }
   return rows;
 }
+
 
 const API_BASE = 'https://portfolio-api-khaki-chi.vercel.app';
 let quoteBusy = false;
