@@ -80,20 +80,27 @@ header h1{font-size:17px;font-weight:600;}
 .stitle:first-child{margin-top:0;}
 
 /* alloc */
-.awrap{padding:12px 16px;}
-.arow{margin-bottom:11px;}
-.arow:last-child{margin-bottom:0;}
-.arow-top{display:flex;align-items:center;gap:10px;margin-bottom:5px;}
+.awrap{padding:4px 16px;}
+.arow{padding:10px 0;border-bottom:.5px solid rgba(0,0,0,0.1);}
+@media(prefers-color-scheme:dark){.arow{border-bottom-color:rgba(255,255,255,0.08);}}
+.arow:last-child{border-bottom:none;}
+.arow-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
 .adot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
-.aname{font-size:13px;width:68px;flex-shrink:0;}
-.abg{flex:1;height:5px;background:var(–card2);border-radius:3px;overflow:hidden;}
-.abar{height:100%;border-radius:3px;transition:width .5s;}
-.apct{font-size:13px;color:var(–text2);width:36px;text-align:right;flex-shrink:0;}
-.arow-sub{display:flex;gap:5px;padding-left:18px;flex-wrap:wrap;}
-.asub-chip{font-size:11px;color:#6c6c70;background:#f2f2f7;border-radius:6px;padding:2px 7px;white-space:nowrap;line-height:1.6;}
-@media(prefers-color-scheme:dark){.asub-chip{color:#aeaeb2 !important;background:#2c2c2e !important;}}
-.asub-chip.pos{color:#30a64a !important;}
-.asub-chip.neg{color:#e0352b !important;}
+.aname-wrap{display:flex;align-items:center;gap:8px;}
+.aname{font-size:14px;font-weight:500;}
+.apct{font-size:14px;font-weight:600;color:#6c6c70;}
+@media(prefers-color-scheme:dark){.apct{color:#aeaeb2;}}
+.agrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;padding-left:16px;}
+.agrid-label{font-size:10px;color:#aeaeb2;margin-bottom:1px;}
+@media(prefers-color-scheme:dark){.agrid-label{color:#636366;}}
+.agrid-val{font-size:12px;font-weight:500;color:#6c6c70;}
+@media(prefers-color-scheme:dark){.agrid-val{color:#aeaeb2;}}
+.agrid-val.pos{color:#30a64a !important;}
+.agrid-val.neg{color:#e0352b !important;}
+.agrid-pct{font-size:10px;margin-top:1px;}
+.agrid-pct.pos{color:#30a64a;}
+.agrid-pct.neg{color:#e0352b;}
+.agrid-pct.muted{color:#aeaeb2;}
 
 /* holdings */
 .hrow{display:flex;align-items:center;padding:13px 16px;gap:12px;cursor:pointer;border-bottom:.5px solid var(–border);-webkit-user-select:none;}
@@ -533,21 +540,19 @@ function render(){
     const catPnlPct=catCt>0?catPnl/catCt*100:0;
     const catHasPnl=byHasPnl[t];
 
-    let chips=`<span class="asub-chip">成本 ${fmtTWD(catCt)}</span>`;
-    chips+=`<span class="asub-chip">市值 ${fmtTWD(byMV[t])}</span>`;
-    if(catHasPnl){
-      const cl=pCls(catPnl);
-      chips+=`<span class="asub-chip ${cl}">${sign(catPnl)}${fmtTWD(catPnl)}（${sign(catPnlPct)}${catPnlPct.toFixed(1)}%）</span>`;
-    }
+    const pnlCl=catHasPnl?pCls(catPnl):'';
+    const pnlValStr=catHasPnl?`<div class="agrid-val ${pnlCl}">${sign(catPnl)}${fmtTWD(catPnl)}</div><div class="agrid-pct ${pnlCl||'muted'}">${sign(catPnlPct)}${catPnlPct.toFixed(1)}%</div>`:`<div class="agrid-val" style="color:#636366">－</div>`;
 
     aH+=`<div class="arow">
       <div class="arow-top">
-        <div class="adot" style="background:${CAT[t].color}"></div>
-        <div class="aname">${CAT[t].name}</div>
-        <div class="abg"><div class="abar" style="width:${pct.toFixed(1)}%;background:${CAT[t].color}"></div></div>
+        <div class="aname-wrap"><div class="adot" style="background:${CAT[t].color}"></div><div class="aname">${CAT[t].name}</div></div>
         <div class="apct">${pct.toFixed(0)}%</div>
       </div>
-      <div class="arow-sub">${chips}</div>
+      <div class="agrid">
+        <div><div class="agrid-label">成本</div><div class="agrid-val">${fmtTWD(catCt)}</div></div>
+        <div><div class="agrid-label">市值</div><div class="agrid-val">${fmtTWD(byMV[t])}</div></div>
+        <div><div class="agrid-label">損益</div>${pnlValStr}</div>
+      </div>
     </div>`;
   });
   document.getElementById('alloc').innerHTML=aH||'<div class="empty">尚無資料</div>';
