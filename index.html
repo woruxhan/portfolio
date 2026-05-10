@@ -176,7 +176,7 @@ header h1{font-size:17px;font-weight:600;}
 <body>
 <div class="safe-top"></div>
 <header>
-  <div style="font-size:12px;color:var(--text2)">Portfolio <span style="font-size:10px;color:var(--text3)">v2.0</span></div>
+  <div style="font-size:12px;color:var(--text2)">Portfolio <span style="font-size:10px;color:var(--text3)">v2.1</span></div>
   <h1 id="page-title">總覽</h1>
   <div class="utime" id="utime"></div>
 </header>
@@ -184,15 +184,36 @@ header h1{font-size:17px;font-weight:600;}
 <!-- PAGE: 總覽 -->
 <div class="page active" id="page-overview">
   <div class="sgrid">
-    <div class="scard">
+    <div class="scard" style="position:relative;overflow:hidden;">
+      <div style="position:absolute;right:10px;top:50%;transform:translateY(-50%);opacity:0.15;pointer-events:none;">
+        <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+          <rect x="22" y="28" width="8" height="16" rx="2" fill="#8B6914"/>
+          <ellipse cx="26" cy="22" rx="12" ry="14" fill="#34a853"/>
+          <ellipse cx="18" cy="26" rx="8" ry="10" fill="#27a344"/>
+          <ellipse cx="34" cy="26" rx="8" ry="10" fill="#27a344"/>
+          <ellipse cx="26" cy="14" rx="7" ry="9" fill="#4cbc6a"/>
+        </svg>
+      </div>
       <div class="slabel">總資產市值</div>
       <div class="sval" id="sv-total">--</div>
       <div class="ssub" id="sv-cost">成本 --</div>
     </div>
-    <div class="scard">
-      <div class="slabel">總損益（含已實現）</div>
-      <div class="sval" id="sv-pnl">--</div>
-      <div class="ssub" id="sv-pct" style="font-size:13px">--</div>
+    <div style="background:var(--card);border-radius:16px;overflow:hidden;">
+      <div style="padding:14px 16px;border-bottom:.5px solid var(--border);">
+        <div class="slabel">總損益</div>
+        <div class="sval" id="sv-pnl">--</div>
+        <div class="ssub" id="sv-pct" style="font-size:12px">--</div>
+      </div>
+      <div style="padding:8px 16px;background:var(--card2);">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:.5px solid var(--border);">
+          <div style="font-size:12px;color:var(--text2);">未實現</div>
+          <div style="font-size:12px;font-weight:500;" id="sv-unrealized">--</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
+          <div style="font-size:12px;color:var(--text2);" id="sv-realized-label">已實現</div>
+          <div style="font-size:12px;font-weight:500;" id="sv-realized">--</div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="stitle">配置比例</div>
@@ -558,11 +579,24 @@ function render(){
     pEl.style.fontSize='18px';pEl.textContent=sign(tTotalPnl)+fmtTWD(tTotalPnl);
     const ppEl=document.getElementById('sv-pct');
     ppEl.style.color=tTotalPnl>0?'var(--pos)':tTotalPnl<0?'var(--neg)':'var(--text2)';
-    ppEl.textContent=sign(tPct)+tPct.toFixed(2)+'%';
+    ppEl.textContent=sign(tPct)+tPct.toFixed(2)+'%　含已實現';
   }else{
     pEl.className='sval';pEl.textContent='--';
     document.getElementById('sv-pct').textContent='輸入市價後顯示';
   }
+  // unrealized / realized breakdown
+  const urEl=document.getElementById('sv-unrealized');
+  if(hasUnreal){
+    urEl.style.color=tUnrealPnl>0?'var(--pos)':tUnrealPnl<0?'var(--neg)':'var(--text2)';
+    urEl.textContent=sign(tUnrealPnl)+fmtTWD(tUnrealPnl);
+  }else{
+    urEl.style.color='var(--text3)';urEl.textContent='--';
+  }
+  const rlEl=document.getElementById('sv-realized');
+  const rlLbl=document.getElementById('sv-realized-label');
+  rlLbl.textContent='已實現（'+records.length+' 筆）';
+  rlEl.style.color=tRealPnl>0?'var(--pos)':tRealPnl<0?'var(--neg)':'var(--text2)';
+  rlEl.textContent=records.length?(sign(tRealPnl)+fmtTWD(tRealPnl)):'--';
 
   // alloc table
   const byT={},byCost={};
