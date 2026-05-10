@@ -376,17 +376,20 @@ header h1{font-size:17px;font-weight:600;}
       <select id="r-cur" onchange="calcRecordPnl()">
         <option value="TWD">TWD 台幣</option>
         <option value="USD">USD 美元</option>
-        <option value="TWD_US">TWD 複委託</option>
+        <option value="TWD_US">TWD 複委託（成本台幣／賣出美元）</option>
       </select>
     </div>
-    <div class="field"><label>賣出股數</label>
-      <input type="number" id="r-qty" placeholder="例：200" inputmode="decimal" oninput="calcRecordPnl()">
+    <div class="field"><label id="r-lbl-cost">買入總額</label>
+      <input type="number" id="r-cost-total" placeholder="例：216,000" inputmode="decimal" oninput="calcRecordPnl()">
     </div>
-    <div class="field"><label id="r-lbl-cost">成本均價（每股）</label>
-      <input type="number" id="r-cost" placeholder="自動帶入或手動輸入" inputmode="decimal" oninput="calcRecordPnl()">
+    <div class="field"><label id="r-lbl-sell">賣出總額</label>
+      <input type="number" id="r-sell-total" placeholder="例：340,500" inputmode="decimal" oninput="calcRecordPnl()">
     </div>
-    <div class="field"><label id="r-lbl-sell">賣出均價（每股）</label>
-      <input type="number" id="r-sell" placeholder="例：1050" inputmode="decimal" oninput="calcRecordPnl()">
+    <div class="field"><label>手續費（選填）</label>
+      <input type="number" id="r-fee" placeholder="例：100" inputmode="decimal" oninput="calcRecordPnl()">
+    </div>
+    <div class="field"><label>稅費（選填）</label>
+      <input type="number" id="r-tax" placeholder="例：200" inputmode="decimal" oninput="calcRecordPnl()">
     </div>
     <div class="hint" id="r-hint"></div>
     <div class="field"><label>日期</label>
@@ -641,8 +644,8 @@ function toggleD(id){
 // ── Render records ──
 function renderRecords(){
   const tPnl=records.reduce((s,r)=>s+r.pnl,0);
-  const tSell=records.reduce((s,r)=>s+toTWD(r.sellPrice*r.qty,r.cur),0);
-  const tCost=records.reduce((s,r)=>s+toTWD(r.cost*r.qty,r.cur),0);
+  const tSell=records.reduce((s,r)=>s+(r.sellTWD||0),0);
+  const tCost=records.reduce((s,r)=>s+(r.costTWD||0),0);
 
   const pEl=document.getElementById('rv-pnl');
   pEl.className='sval '+(tPnl>0?'pos':tPnl<0?'neg':'');
@@ -663,7 +666,7 @@ function renderRecords(){
       </div>
       <div class="rrecord-right">
         <div class="rrecord-pnl ${cls}">${sign(r.pnl)}${fmtTWD(r.pnl)}</div>
-        <div class="rrecord-detail">賣 ${fmtL(r.sellPrice,r.cur)} / 成本 ${fmtL(r.cost,r.cur)}</div>
+        <div class="rrecord-detail">賣出 ${fmtTWD(r.sellTWD||0)}　成本 ${fmtTWD(r.costTWD||0)}${(r.fee||r.tax)?'　費稅 '+fmtTWD(((r.fee||0)+(r.tax||0))):''}</div>
         <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end;">
           <button onclick="editRecord(${r.id})" style="font-size:12px;padding:3px 10px;border-radius:6px;border:none;cursor:pointer;background:var(--card2);color:var(--blue);">編輯</button>
           <button onclick="delRecord(${r.id})" style="font-size:12px;padding:3px 10px;border-radius:6px;border:none;cursor:pointer;background:var(--card2);color:var(--neg);">刪除</button>
@@ -742,58 +745,54 @@ function renderTarget(){
 
 // ── Target inputs ──
 function renderTargetInputs(){
-  let totalCost=0;
-  holdings.forEach(h=>{totalCost+=toTWD(h.cost*h.qty,h.cur);});
+  // Store target amounts separately from percentages
+  if(!cfg.targetAmts) cfg.targetAmts={};
   const el=document.getElementById('target-inputs');
   let html='';
   Object.keys(CAT).forEach(t=>{
-    const pct=targets[t]||0;
-    const amt=totalCost>0?(pct/100)*totalCost:0;
+    const amt=cfg.targetAmts[t]||0;
+    const totalTargetAmt=Object.values(cfg.targetAmts||{}).reduce((a,b)=>a+b,0);
+    const pct=totalTargetAmt>0?(amt/totalTargetAmt*100):0;
     html+=`<div class="target-input-row">
       <div class="ti-dot" style="background:${CAT[t].color}"></div>
       <div class="ti-name">${CAT[t].name}</div>
       <div class="ti-inputs">
-        <input class="ti-input" type="number" inputmode="decimal" id="ti-pct-${t}" value="${pct}"
-          placeholder="%" oninput="onTargetPctChange('${t}')">
-        <div class="ti-unit">%</div>
-        <input class="ti-input" type="number" inputmode="decimal" id="ti-amt-${t}" value="${totalCost>0?Math.round(amt):''}"
-          placeholder="NT$" oninput="onTargetAmtChange('${t}')">
-        <div class="ti-unit" style="width:28px;font-size:11px">TWD</div>
+        <input class="ti-input" type="number" inputmode="decimal" id="ti-amt-${t}"
+          value="${amt||''}" placeholder="目標金額"
+          oninput="onTargetAmtChange('${t}')">
+        <div class="ti-unit" style="width:16px;font-size:10px">萬</div>
       </div>
+      <div id="ti-pct-${t}" style="font-size:12px;color:var(--text3);width:36px;text-align:right;flex-shrink:0;">${pct>0?pct.toFixed(1)+'%':''}</div>
     </div>`;
   });
   el.innerHTML=html;
   updateTargetTotal();
   document.getElementById('threshold-input').value=cfg.threshold;
 }
-function onTargetPctChange(t){
-  const pct=parseFloat(document.getElementById('ti-pct-'+t).value)||0;
-  targets[t]=pct;
-  let totalCost=0;
-  holdings.forEach(h=>{totalCost+=toTWD(h.cost*h.qty,h.cur);});
-  if(totalCost>0){
-    const amt=(pct/100)*totalCost;
-    document.getElementById('ti-amt-'+t).value=Math.round(amt)||'';
-  }
-  updateTargetTotal();
-}
 function onTargetAmtChange(t){
-  let totalCost=0;
-  holdings.forEach(h=>{totalCost+=toTWD(h.cost*h.qty,h.cur);});
-  if(totalCost>0){
-    const amt=parseFloat(document.getElementById('ti-amt-'+t).value)||0;
-    const pct=amt/totalCost*100;
-    targets[t]=Math.round(pct*10)/10;
-    document.getElementById('ti-pct-'+t).value=targets[t];
-  }
+  if(!cfg.targetAmts) cfg.targetAmts={};
+  cfg.targetAmts[t]=parseFloat(document.getElementById('ti-amt-'+t).value)||0;
+  // Recalc all percentages based on total target amount
+  const totalAmt=Object.values(cfg.targetAmts).reduce((a,b)=>a+b,0);
+  Object.keys(CAT).forEach(k=>{
+    const pct=totalAmt>0?((cfg.targetAmts[k]||0)/totalAmt*100):0;
+    targets[k]=Math.round(pct*10)/10;
+    const pctEl=document.getElementById('ti-pct-'+k);
+    if(pctEl) pctEl.textContent=pct>0?pct.toFixed(1)+'%':'';
+  });
   updateTargetTotal();
 }
 function updateTargetTotal(){
+  const totalAmt=Object.values(cfg.targetAmts||{}).reduce((a,b)=>a+b,0);
   const total=Object.values(targets).reduce((a,b)=>a+b,0);
   const el=document.getElementById('target-total-check');
-  el.innerHTML=Math.abs(total-100)<0.5
-    ?'合計 <span style="color:var(--pos);font-weight:600">100% ✓</span>'
-    :'合計 <span style="color:var(--neg);font-weight:600">'+total.toFixed(1)+'% （需為 100%）</span>';
+  if(totalAmt===0){
+    el.innerHTML='請輸入各類別目標金額（單位：萬）';
+  } else {
+    el.innerHTML=Math.abs(total-100)<0.5
+      ?'合計 <span style="color:var(--pos);font-weight:600">100% ✓　目標總額 NT$'+Math.round(totalAmt)+'萬</span>'
+      :'合計 <span style="color:var(--pos);font-weight:600">100% ✓　目標總額 NT$'+Math.round(totalAmt)+'萬</span>';
+  }
 }
 function saveTargets(){
   const total=Object.values(targets).reduce((a,b)=>a+b,0);
@@ -896,21 +895,24 @@ function delH(id){
 
 // ── Modal: record ──
 function calcRecordPnl(){
-  const qty=parseFloat(document.getElementById('r-qty').value);
-  const cost=parseFloat(document.getElementById('r-cost').value);
-  const sell=parseFloat(document.getElementById('r-sell').value);
+  const costTotal=parseFloat(document.getElementById('r-cost-total').value);
+  const sellTotal=parseFloat(document.getElementById('r-sell-total').value);
+  const fee=parseFloat(document.getElementById('r-fee').value)||0;
+  const tax=parseFloat(document.getElementById('r-tax').value)||0;
   const cur=document.getElementById('r-cur').value;
   const el=document.getElementById('r-hint');
-  if(qty>0&&cost>0&&sell>0){
-    let pnl,pnlFmt;
-    if(cur==='TWD_US'){
-      pnl=(sell-cost)*(fx.USD||32.5)*qty;pnlFmt=sign(pnl)+fmtTWD(pnl);
-    }else{
-      pnl=(sell-cost)*qty;pnlFmt=sign(pnl)+fmtL(pnl,cur);
-    }
-    const pct=cost>0?(sell-cost)/cost*100:0;
-    const cls=pnl>0?'pos':pnl<0?'neg':'';
-    el.innerHTML='損益：<span class="'+cls+'">'+pnlFmt+' （'+sign(pct)+pct.toFixed(2)+'%）</span>';
+  if(costTotal>0&&sellTotal>0){
+    // Convert to TWD first
+    const costTWD = cur==='TWD_US' ? costTotal : toTWD(costTotal, cur);
+    const sellTWD = cur==='TWD_US' ? sellTotal*(fx.USD||32.5) : toTWD(sellTotal, cur);
+    const feeTWD  = toTWD(fee, cur==='TWD_US'?'TWD':cur);
+    const taxTWD  = toTWD(tax, cur==='TWD_US'?'TWD':cur);
+    const pnl = sellTWD - costTWD - feeTWD - taxTWD;
+    const pct = costTWD>0 ? pnl/costTWD*100 : 0;
+    const cls = pnl>0?'pos':pnl<0?'neg':'';
+    let detail = '賣出 '+fmtTWD(sellTWD)+'　成本 '+fmtTWD(costTWD);
+    if(fee>0||tax>0) detail += '　費稅 '+fmtTWD(feeTWD+taxTWD);
+    el.innerHTML='已實現損益：<span class="'+cls+'">'+sign(pnl)+fmtTWD(pnl)+'（'+sign(pct)+pct.toFixed(2)+'%）</span><br><span style="font-size:11px;color:var(--text3)">'+detail+'</span>';
   }else{el.innerHTML='';}
 }
 function openRecordModal(r){
@@ -918,9 +920,10 @@ function openRecordModal(r){
   document.getElementById('record-mtitle').textContent=r?'編輯賣出紀錄':'新增賣出紀錄';
   document.getElementById('r-name').value=r?.name??'';
   document.getElementById('r-cur').value=r?.cur??'TWD';
-  document.getElementById('r-qty').value=r?.qty??'';
-  document.getElementById('r-cost').value=r?.cost??'';
-  document.getElementById('r-sell').value=r?.sellPrice??'';
+  document.getElementById('r-cost-total').value=r?.costTotal??'';
+  document.getElementById('r-sell-total').value=r?.sellTotal??'';
+  document.getElementById('r-fee').value=r?.fee??'';
+  document.getElementById('r-tax').value=r?.tax??'';
   document.getElementById('r-date').value=r?.date??new Date().toISOString().split('T')[0];
   document.getElementById('r-note').value=r?.note??'';
   document.getElementById('r-hint').innerHTML='';
@@ -932,18 +935,21 @@ function closeRecordModal(){document.getElementById('record-overlay').classList.
 function saveRecord(){
   const name=document.getElementById('r-name').value.trim();
   const cur=document.getElementById('r-cur').value;
-  const qty=parseFloat(document.getElementById('r-qty').value);
-  const cost=parseFloat(document.getElementById('r-cost').value);
-  const sell=parseFloat(document.getElementById('r-sell').value);
+  const costTotal=parseFloat(document.getElementById('r-cost-total').value);
+  const sellTotal=parseFloat(document.getElementById('r-sell-total').value);
+  const fee=parseFloat(document.getElementById('r-fee').value)||0;
+  const tax=parseFloat(document.getElementById('r-tax').value)||0;
   const date=document.getElementById('r-date').value;
   const note=document.getElementById('r-note').value.trim();
-  if(!name||isNaN(qty)||qty<=0||isNaN(cost)||cost<=0||isNaN(sell)||sell<=0||!date){
-    alert('請填寫名稱、股數、成本均價、賣出均價與日期');return;
+  if(!name||isNaN(costTotal)||costTotal<=0||isNaN(sellTotal)||sellTotal<=0||!date){
+    alert('請填寫名稱、買入總額、賣出總額與日期');return;
   }
-  let pnl;
-  if(cur==='TWD_US') pnl=(sell-cost)*(fx.USD||32.5)*qty;
-  else pnl=(sell-cost)*qty;
-  const rec={id:editRecordId||Date.now(),name,cur,qty,cost,sellPrice:sell,pnl,date,note};
+  const costTWD = cur==='TWD_US' ? costTotal : toTWD(costTotal, cur);
+  const sellTWD = cur==='TWD_US' ? sellTotal*(fx.USD||32.5) : toTWD(sellTotal, cur);
+  const feeTWD  = toTWD(fee, cur==='TWD_US'?'TWD':cur);
+  const taxTWD  = toTWD(tax, cur==='TWD_US'?'TWD':cur);
+  const pnl = sellTWD - costTWD - feeTWD - taxTWD;
+  const rec={id:editRecordId||Date.now(),name,cur,costTotal,sellTotal,fee,tax,costTWD,sellTWD,pnl,date,note};
   if(editRecordId){const i=records.findIndex(x=>x.id===editRecordId);if(i>=0)records[i]=rec;}
   else records.push(rec);
   saveD();closeRecordModal();renderRecords();render();
