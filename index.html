@@ -379,6 +379,9 @@ header h1{font-size:17px;font-weight:600;}
         <option value="TWD_US">TWD 複委託（成本台幣／賣出美元）</option>
       </select>
     </div>
+    <div class="field"><label>賣出股數</label>
+      <input type="number" id="r-qty" placeholder="例：200" inputmode="decimal" oninput="calcRecordPnl()">
+    </div>
     <div class="field"><label id="r-lbl-cost">買入總額</label>
       <input type="number" id="r-cost-total" placeholder="例：216,000" inputmode="decimal" oninput="calcRecordPnl()">
     </div>
@@ -662,7 +665,7 @@ function renderRecords(){
     rH+=`<div class="rrecord">
       <div class="rrecord-info">
         <div class="rrecord-name">${r.name}</div>
-        <div class="rrecord-sub">${r.date}　${Number(r.qty).toLocaleString()} 股 · ${curLabel}${r.note?' · '+r.note:''}</div>
+        <div class="rrecord-sub">${r.date}${r.qty?' · '+Number(r.qty).toLocaleString()+' 股':''} · ${curLabel}${r.note?' · '+r.note:''}</div>
       </div>
       <div class="rrecord-right">
         <div class="rrecord-pnl ${cls}">${sign(r.pnl)}${fmtTWD(r.pnl)}</div>
@@ -912,7 +915,15 @@ function calcRecordPnl(){
     const cls = pnl>0?'pos':pnl<0?'neg':'';
     let detail = '賣出 '+fmtTWD(sellTWD)+'　成本 '+fmtTWD(costTWD);
     if(fee>0||tax>0) detail += '　費稅 '+fmtTWD(feeTWD+taxTWD);
-    el.innerHTML='已實現損益：<span class="'+cls+'">'+sign(pnl)+fmtTWD(pnl)+'（'+sign(pct)+pct.toFixed(2)+'%）</span><br><span style="font-size:11px;color:var(--text3)">'+detail+'</span>';
+    const qty=parseFloat(document.getElementById('r-qty').value);
+    let unitStr='';
+    if(qty>0){
+      const buyUnit=costTotal/qty;
+      const sellUnit=sellTotal/qty;
+      const uFmt=cur==='TWD'?'NT$':'US$';
+      unitStr='<br><span style="font-size:11px;color:var(--text3)">買入均價 '+uFmt+buyUnit.toFixed(2)+'　賣出均價 '+uFmt+sellUnit.toFixed(2)+'</span>';
+    }
+    el.innerHTML='已實現損益：<span class="'+cls+'">'+sign(pnl)+fmtTWD(pnl)+'（'+sign(pct)+pct.toFixed(2)+'%）</span><br><span style="font-size:11px;color:var(--text3)">'+detail+'</span>'+unitStr;
   }else{el.innerHTML='';}
 }
 function openRecordModal(r){
@@ -920,6 +931,7 @@ function openRecordModal(r){
   document.getElementById('record-mtitle').textContent=r?'編輯賣出紀錄':'新增賣出紀錄';
   document.getElementById('r-name').value=r?.name??'';
   document.getElementById('r-cur').value=r?.cur??'TWD';
+  document.getElementById('r-qty').value=r?.qty??'';
   document.getElementById('r-cost-total').value=r?.costTotal??'';
   document.getElementById('r-sell-total').value=r?.sellTotal??'';
   document.getElementById('r-fee').value=r?.fee??'';
@@ -949,7 +961,8 @@ function saveRecord(){
   const feeTWD  = toTWD(fee, cur==='TWD_US'?'TWD':cur);
   const taxTWD  = toTWD(tax, cur==='TWD_US'?'TWD':cur);
   const pnl = sellTWD - costTWD - feeTWD - taxTWD;
-  const rec={id:editRecordId||Date.now(),name,cur,costTotal,sellTotal,fee,tax,costTWD,sellTWD,pnl,date,note};
+  const qty=parseFloat(document.getElementById('r-qty').value)||0;
+  const rec={id:editRecordId||Date.now(),name,cur,qty,costTotal,sellTotal,fee,tax,costTWD,sellTWD,pnl,date,note};
   if(editRecordId){const i=records.findIndex(x=>x.id===editRecordId);if(i>=0)records[i]=rec;}
   else records.push(rec);
   saveD();closeRecordModal();renderRecords();render();
