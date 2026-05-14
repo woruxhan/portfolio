@@ -176,7 +176,7 @@ header h1{font-size:17px;font-weight:600;}
 <body>
 <div class="safe-top"></div>
 <header>
-  <div style="font-size:12px;color:var(--text2)">Portfolio <span style="font-size:10px;color:var(--text3)">v2.1</span></div>
+  <div style="font-size:12px;color:var(--text2)">Portfolio <span style="font-size:10px;color:var(--text3)">v2.2</span></div>
   <h1 id="page-title">總覽</h1>
   <div class="utime" id="utime"></div>
 </header>
@@ -204,14 +204,14 @@ header h1{font-size:17px;font-weight:600;}
         <div class="sval" id="sv-pnl">--</div>
         <div class="ssub" id="sv-pct" style="font-size:12px">--</div>
       </div>
-      <div style="padding:8px 16px;background:var(--card2);">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:.5px solid var(--border);">
-          <div style="font-size:12px;color:var(--text2);">未實現</div>
-          <div style="font-size:12px;font-weight:500;" id="sv-unrealized">--</div>
+      <div style="padding:6px 16px 8px;background:var(--card2);">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:.5px solid var(--border);">
+          <div style="font-size:12px;color:var(--text2);">未實現（排除現金）</div>
+          <div style="display:flex;gap:5px;" id="sv-unrealized">--</div>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;">
           <div style="font-size:12px;color:var(--text2);" id="sv-realized-label">已實現</div>
-          <div style="font-size:12px;font-weight:500;" id="sv-realized">--</div>
+          <div style="display:flex;gap:5px;" id="sv-realized">--</div>
         </div>
       </div>
     </div>
@@ -579,24 +579,45 @@ function render(){
     pEl.style.fontSize='18px';pEl.textContent=sign(tTotalPnl)+fmtTWD(tTotalPnl);
     const ppEl=document.getElementById('sv-pct');
     ppEl.style.color=tTotalPnl>0?'var(--pos)':tTotalPnl<0?'var(--neg)':'var(--text2)';
-    ppEl.textContent=sign(tPct)+tPct.toFixed(2)+'%　含已實現';
+    ppEl.textContent='未實現 + 已實現';
   }else{
     pEl.className='sval';pEl.textContent='--';
     document.getElementById('sv-pct').textContent='輸入市價後顯示';
   }
-  // unrealized / realized breakdown
-  const urEl=document.getElementById('sv-unrealized');
-  if(hasUnreal){
-    urEl.style.color=tUnrealPnl>0?'var(--pos)':tUnrealPnl<0?'var(--neg)':'var(--text2)';
-    urEl.textContent=sign(tUnrealPnl)+fmtTWD(tUnrealPnl);
-  }else{
-    urEl.style.color='var(--text3)';urEl.textContent='--';
+  // unrealized (exclude cash) / realized breakdown - pill style
+  // Recalc unrealized excluding cash
+  let urPnl=0,urCost=0,hasUrPnl=false;
+  holdings.forEach(h=>{
+    if(h.type==='cash') return;
+    const v=vals[h.id];
+    if(v&&v.pnl!=null){urPnl+=v.pnl;urCost+=v.ct;hasUrPnl=true;}
+  });
+  const urPct=urCost>0?urPnl/urCost*100:0;
+
+  function makePill(amt, pct){
+    const cls=amt>0?'pill-pos':amt<0?'pill-neg':'pill-neu';
+    return '<span class="rpill '+cls+'">'+sign(amt)+fmtTWD(amt)+'</span>'+
+           '<span class="rpill '+cls+'">'+sign(pct)+pct.toFixed(1)+'%</span>';
   }
+
+  const urEl=document.getElementById('sv-unrealized');
+  if(hasUrPnl){
+    urEl.innerHTML=makePill(urPnl,urPct);
+  }else{
+    urEl.innerHTML='<span style="font-size:12px;color:var(--text3)">--</span>';
+  }
+
+  // realized
   const rlEl=document.getElementById('sv-realized');
   const rlLbl=document.getElementById('sv-realized-label');
   rlLbl.textContent='已實現（'+records.length+' 筆）';
-  rlEl.style.color=tRealPnl>0?'var(--pos)':tRealPnl<0?'var(--neg)':'var(--text2)';
-  rlEl.textContent=records.length?(sign(tRealPnl)+fmtTWD(tRealPnl)):'--';
+  if(records.length>0){
+    const rlCost=records.reduce((s,r)=>s+(r.costTWD||0),0);
+    const rlPct=rlCost>0?tRealPnl/rlCost*100:0;
+    rlEl.innerHTML=makePill(tRealPnl,rlPct);
+  }else{
+    rlEl.innerHTML='<span style="font-size:12px;color:var(--text3)">--</span>';
+  }
 
   // alloc table
   const byT={},byCost={};
