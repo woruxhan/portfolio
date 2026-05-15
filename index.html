@@ -176,7 +176,7 @@ header h1{font-size:17px;font-weight:600;}
 <body>
 <div class="safe-top"></div>
 <header>
-  <div style="font-size:12px;color:var(--text2)">Portfolio <span style="font-size:10px;color:var(--text3)">v2.2</span></div>
+  <div style="font-size:12px;color:var(--text2)">Portfolio <span style="font-size:10px;color:var(--text3)">v2.3</span></div>
   <h1 id="page-title">總覽</h1>
   <div class="utime" id="utime"></div>
 </header>
@@ -198,22 +198,26 @@ header h1{font-size:17px;font-weight:600;}
       <div class="sval" id="sv-total">--</div>
       <div class="ssub" id="sv-cost">成本 --</div>
     </div>
-    <div style="background:var(--card);border-radius:16px;overflow:hidden;">
-      <div style="padding:14px 16px;border-bottom:.5px solid var(--border);">
-        <div class="slabel">總損益</div>
-        <div class="sval" id="sv-pnl">--</div>
-        <div class="ssub" id="sv-pct" style="font-size:12px">--</div>
-      </div>
-      <div style="padding:6px 16px 8px;background:var(--card2);">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:.5px solid var(--border);">
-          <div style="font-size:12px;color:var(--text2);">未實現（排除現金）</div>
-          <div style="display:flex;gap:5px;" id="sv-unrealized">--</div>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;">
-          <div style="font-size:12px;color:var(--text2);" id="sv-realized-label">已實現</div>
-          <div style="display:flex;gap:5px;" id="sv-realized">--</div>
-        </div>
-      </div>
+    <div class="scard">
+      <div class="slabel">總損益</div>
+      <div class="sval" id="sv-pnl">--</div>
+      <div class="ssub" id="sv-pct" style="font-size:12px">未實現 + 已實現</div>
+    </div>
+  </div>
+  <!-- 橫條卡：未實現 / 已實現 -->
+  <div class="scard" style="display:flex;align-items:stretch;padding:0;margin-bottom:16px;">
+    <div style="flex:1;padding:12px 14px;">
+      <div class="slabel">未實現損益</div>
+      <div class="sval" id="sv-unrealized-val" style="font-size:16px;">--</div>
+      <div style="font-size:11px;margin-top:2px;" id="sv-unrealized-pct">--</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:3px;">排除現金</div>
+    </div>
+    <div style="width:.5px;background:var(--border);margin:10px 0;"></div>
+    <div style="flex:1;padding:12px 14px;">
+      <div class="slabel" id="sv-realized-label">已實現損益</div>
+      <div class="sval" id="sv-realized-val" style="font-size:16px;">--</div>
+      <div style="font-size:11px;margin-top:2px;" id="sv-realized-pct">--</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:3px;" id="sv-realized-note">--</div>
     </div>
   </div>
   <div class="stitle">配置比例</div>
@@ -584,8 +588,7 @@ function render(){
     pEl.className='sval';pEl.textContent='--';
     document.getElementById('sv-pct').textContent='輸入市價後顯示';
   }
-  // unrealized (exclude cash) / realized breakdown - pill style
-  // Recalc unrealized excluding cash
+  // unrealized (exclude cash)
   let urPnl=0,urCost=0,hasUrPnl=false;
   holdings.forEach(h=>{
     if(h.type==='cash') return;
@@ -594,29 +597,38 @@ function render(){
   });
   const urPct=urCost>0?urPnl/urCost*100:0;
 
-  function makePill(amt, pct){
-    const cls=amt>0?'pill-pos':amt<0?'pill-neg':'pill-neu';
-    return '<span class="rpill '+cls+'">'+sign(amt)+fmtTWD(amt)+'</span>'+
-           '<span class="rpill '+cls+'">'+sign(pct)+pct.toFixed(1)+'%</span>';
-  }
-
-  const urEl=document.getElementById('sv-unrealized');
+  const urValEl=document.getElementById('sv-unrealized-val');
+  const urPctEl=document.getElementById('sv-unrealized-pct');
   if(hasUrPnl){
-    urEl.innerHTML=makePill(urPnl,urPct);
+    urValEl.className='sval '+(urPnl>0?'pos':urPnl<0?'neg':'');
+    urValEl.style.fontSize='16px';
+    urValEl.textContent=sign(urPnl)+fmtTWD(urPnl);
+    urPctEl.style.color=urPnl>0?'var(--pos)':urPnl<0?'var(--neg)':'var(--text2)';
+    urPctEl.textContent=sign(urPct)+urPct.toFixed(1)+'%';
   }else{
-    urEl.innerHTML='<span style="font-size:12px;color:var(--text3)">--</span>';
+    urValEl.className='sval';urValEl.textContent='--';
+    urPctEl.textContent='輸入市價後顯示';urPctEl.style.color='var(--text3)';
+    urPctEl.style.fontSize='10px';
   }
 
   // realized
-  const rlEl=document.getElementById('sv-realized');
+  const rlValEl=document.getElementById('sv-realized-val');
+  const rlPctEl=document.getElementById('sv-realized-pct');
+  const rlNoteEl=document.getElementById('sv-realized-note');
   const rlLbl=document.getElementById('sv-realized-label');
-  rlLbl.textContent='已實現（'+records.length+' 筆）';
+  rlLbl.textContent='已實現損益';
+  rlNoteEl.textContent=records.length+' 筆';
   if(records.length>0){
     const rlCost=records.reduce((s,r)=>s+(r.costTWD||0),0);
     const rlPct=rlCost>0?tRealPnl/rlCost*100:0;
-    rlEl.innerHTML=makePill(tRealPnl,rlPct);
+    rlValEl.className='sval '+(tRealPnl>0?'pos':tRealPnl<0?'neg':'');
+    rlValEl.style.fontSize='16px';
+    rlValEl.textContent=sign(tRealPnl)+fmtTWD(tRealPnl);
+    rlPctEl.style.color=tRealPnl>0?'var(--pos)':tRealPnl<0?'var(--neg)':'var(--text2)';
+    rlPctEl.textContent=sign(rlPct)+rlPct.toFixed(1)+'%';
   }else{
-    rlEl.innerHTML='<span style="font-size:12px;color:var(--text3)">--</span>';
+    rlValEl.className='sval';rlValEl.textContent='--';
+    rlPctEl.textContent='';
   }
 
   // alloc table
