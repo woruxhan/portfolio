@@ -176,7 +176,7 @@ header h1{font-size:17px;font-weight:600;}
 <body>
 <div class="safe-top"></div>
 <header>
-  <div style="font-size:12px;color:var(--text2)">Portfolio <span style="font-size:10px;color:var(--text3)">v2.3</span></div>
+  <div style="font-size:12px;color:var(--text2)">Portfolio <span style="font-size:10px;color:var(--text3)">v2.4</span></div>
   <h1 id="page-title">總覽</h1>
   <div class="utime" id="utime"></div>
 </header>
@@ -232,7 +232,7 @@ header h1{font-size:17px;font-weight:600;}
 <div class="page" id="page-records">
   <div class="sgrid">
     <div class="scard">
-      <div class="slabel">已實現損益</div>
+      <div class="slabel" id="rv-pnl-label">已實現損益</div>
       <div class="sval" id="rv-pnl">--</div>
       <div class="ssub" id="rv-count">-- 筆交易</div>
     </div>
@@ -241,6 +241,22 @@ header h1{font-size:17px;font-weight:600;}
       <div class="sval" id="rv-total">--</div>
       <div class="ssub" id="rv-cost">成本 --</div>
     </div>
+  </div>
+  <!-- Filter bar -->
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <div style="flex:1;display:flex;align-items:center;gap:8px;background:var(--card);border-radius:12px;padding:9px 12px;">
+      <span style="font-size:14px;color:var(--text3);">🔍</span>
+      <input type="text" id="r-search" placeholder="搜尋名稱 / 代號"
+        style="flex:1;border:none;background:transparent;font-size:14px;color:var(--text);outline:none;"
+        oninput="renderRecords()">
+    </div>
+    <select id="r-cur-filter" onchange="renderRecords()"
+      style="background:var(--card);border:none;border-radius:12px;padding:9px 12px;font-size:14px;color:var(--text);-webkit-appearance:none;appearance:none;outline:none;cursor:pointer;padding-right:28px;background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27%3E%3Cpath d=%27M1 1l5 5 5-5%27 stroke=%27%23888%27 stroke-width=%271.5%27 fill=%27none%27 stroke-linecap=%27round%27/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 10px center;">
+      <option value="">全部</option>
+      <option value="TWD">TWD</option>
+      <option value="USD">USD</option>
+      <option value="TWD_US">複委託</option>
+    </select>
   </div>
   <div class="stitle">賣出紀錄</div>
   <div class="card" id="rlist"><div class="empty">尚無紀錄</div></div>
@@ -713,20 +729,35 @@ function toggleD(id){
 
 // ── Render records ──
 function renderRecords(){
-  const tPnl=records.reduce((s,r)=>s+r.pnl,0);
-  const tSell=records.reduce((s,r)=>s+(r.sellTWD||0),0);
-  const tCost=records.reduce((s,r)=>s+(r.costTWD||0),0);
+  const search=(document.getElementById('r-search')?.value||'').trim().toLowerCase();
+  const curFilter=document.getElementById('r-cur-filter')?.value||'';
+  const isFiltered=search||curFilter;
+
+  // apply filters
+  const filtered=records.filter(r=>{
+    if(search && !r.name.toLowerCase().includes(search)) return false;
+    if(curFilter && r.cur!==curFilter) return false;
+    return true;
+  });
+
+  // totals from filtered set
+  const tPnl=filtered.reduce((s,r)=>s+r.pnl,0);
+  const tSell=filtered.reduce((s,r)=>s+(r.sellTWD||0),0);
+  const tCost=filtered.reduce((s,r)=>s+(r.costTWD||0),0);
 
   const pEl=document.getElementById('rv-pnl');
   pEl.className='sval '+(tPnl>0?'pos':tPnl<0?'neg':'');
   pEl.style.fontSize='18px';
-  pEl.textContent=records.length?sign(tPnl)+fmtTWD(tPnl):'--';
-  document.getElementById('rv-count').textContent=records.length+' 筆交易';
-  document.getElementById('rv-total').textContent=records.length?fmtTWD(tSell):'--';
-  document.getElementById('rv-cost').textContent=records.length?'成本 '+fmtTWD(tCost):'--';
+  pEl.textContent=filtered.length?sign(tPnl)+fmtTWD(tPnl):'--';
+  document.getElementById('rv-pnl-label').textContent=isFiltered?'已實現損益（篩選後）':'已實現損益';
+  document.getElementById('rv-count').textContent=isFiltered
+    ? filtered.length+' / '+records.length+' 筆'
+    : records.length+' 筆交易';
+  document.getElementById('rv-total').textContent=filtered.length?fmtTWD(tSell):'--';
+  document.getElementById('rv-cost').textContent=filtered.length?'成本 '+fmtTWD(tCost):'--';
 
   let rH='';
-  [...records].reverse().forEach(r=>{
+  [...filtered].reverse().forEach(r=>{
     const cls=r.pnl>0?'pos':r.pnl<0?'neg':'';
     const curLabel=r.cur==='TWD_US'?'複委託':r.cur;
     rH+=`<div class="rrecord">
@@ -744,7 +775,7 @@ function renderRecords(){
       </div>
     </div>`;
   });
-  document.getElementById('rlist').innerHTML=rH||'<div class="empty">尚無紀錄</div>';
+  document.getElementById('rlist').innerHTML=rH||(isFiltered?'<div class="empty">沒有符合條件的紀錄</div>':'<div class="empty">尚無紀錄</div>');
 }
 
 // ── Render target ──
