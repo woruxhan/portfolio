@@ -647,34 +647,59 @@ function render(){
     rlPctEl.textContent='';
   }
 
-  // alloc table
+  // alloc table with cash/non-cash subtotals
   const byT={},byCost={};
   holdings.forEach(h=>{
     byT[h.type]=(byT[h.type]||0)+vals[h.id].mv;
     byCost[h.type]=(byCost[h.type]||0)+vals[h.id].ct;
   });
-  let aH='';
-  aH+=`<div style="display:flex;align-items:center;padding:5px 14px 5px 30px;gap:8px;">
+  const NON_CASH=['tsmc','defense','etf','other'];
+  let ncMV=0,ncCt=0;
+  NON_CASH.forEach(t=>{ncMV+=(byT[t]||0);ncCt+=(byCost[t]||0);});
+  const cashMV=byT.cash||0,cashCt=byCost.cash||0;
+
+  function catRow(t){
+    if(!byT[t])return '';
+    const pct=tMV>0?byT[t]/tMV*100:0;
+    return `<div style="display:flex;align-items:center;padding:9px 14px;gap:8px;border-bottom:.5px solid var(--border);">
+      <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${CAT[t].color}"></div>
+      <div style="flex:1;font-size:13px;color:var(--text)">${CAT[t].name}</div>
+      <div style="width:68px;text-align:right;font-size:13px;color:var(--text)">${fmtTWD(byT[t])}</div>
+      <div style="width:68px;text-align:right;font-size:13px;color:var(--text2)">${fmtTWD(byCost[t]||0)}</div>
+      <div style="width:30px;text-align:right;font-size:13px;color:var(--text2)">${pct.toFixed(0)}%</div>
+    </div>`;
+  }
+  function subRow(label,mv,ct){
+    const pct=tMV>0?mv/tMV*100:0;
+    return `<div style="display:flex;align-items:center;padding:7px 14px;gap:8px;background:var(--card2);border-top:.5px solid var(--border);border-bottom:.5px solid var(--border);">
+      <div style="width:8px;flex-shrink:0"></div>
+      <div style="flex:1;font-size:12px;font-weight:500;color:var(--text2);padding-left:8px;">${label}</div>
+      <div style="width:68px;text-align:right;font-size:12px;font-weight:500;color:var(--text)">${fmtTWD(mv)}</div>
+      <div style="width:68px;text-align:right;font-size:12px;color:var(--text2)">${fmtTWD(ct)}</div>
+      <div style="width:30px;text-align:right;font-size:12px;color:var(--text2)">${pct.toFixed(0)}%</div>
+    </div>`;
+  }
+
+  let aH=`<div style="display:flex;align-items:center;padding:5px 14px 5px 30px;gap:8px;">
     <div style="flex:1;font-size:11px;color:var(--text3)">類別</div>
     <div style="width:68px;text-align:right;font-size:11px;color:var(--text3)">市值</div>
     <div style="width:68px;text-align:right;font-size:11px;color:var(--text3)">成本</div>
     <div style="width:30px;text-align:right;font-size:11px;color:var(--text3)">佔比</div>
   </div><div style="height:.5px;background:var(--border);margin:0 14px"></div>`;
-  Object.keys(CAT).forEach(t=>{
-    if(!byT[t])return;
-    const pct=tMV>0?byT[t]/tMV*100:0;
-    aH+=`<div style="display:flex;align-items:center;padding:10px 14px;gap:8px;border-bottom:.5px solid var(--border);">
-      <div class="adot" style="background:${CAT[t].color};width:8px;height:8px;border-radius:50%;flex-shrink:0"></div>
-      <div style="flex:1;font-size:14px;color:var(--text)">${CAT[t].name}</div>
-      <div style="width:68px;text-align:right;font-size:13px;color:var(--text)">${fmtTWD(byT[t])}</div>
-      <div style="width:68px;text-align:right;font-size:13px;color:var(--text2)">${fmtTWD(byCost[t]||0)}</div>
-      <div style="width:30px;text-align:right;font-size:13px;color:var(--text2)">${pct.toFixed(0)}%</div>
-    </div>`;
-  });
-  aH+=`<div style="display:flex;align-items:center;padding:10px 14px;gap:8px;background:var(--card2);">
+
+  const hasNonCash=NON_CASH.some(t=>byT[t]>0);
+  NON_CASH.forEach(t=>{aH+=catRow(t);});
+  if(hasNonCash) aH+=subRow('投資部位小計',ncMV,ncCt);
+
+  if(cashMV>0){
+    aH+=catRow('cash');
+    aH+=subRow('現金部位小計',cashMV,cashCt);
+  }
+
+  aH+=`<div style="display:flex;align-items:center;padding:10px 14px;gap:8px;background:var(--card2);border-top:.5px solid var(--border);">
     <div style="width:8px;flex-shrink:0"></div>
-    <div style="flex:1;font-size:13px;font-weight:500;color:var(--text2)">合計</div>
-    <div style="width:68px;text-align:right;font-size:13px;font-weight:500;color:var(--text)">${fmtTWD(tMV)}</div>
+    <div style="flex:1;font-size:13px;font-weight:600;color:var(--text2)">總計</div>
+    <div style="width:68px;text-align:right;font-size:13px;font-weight:600;color:var(--text)">${fmtTWD(tMV)}</div>
     <div style="width:68px;text-align:right;font-size:13px;font-weight:500;color:var(--text2)">${fmtTWD(tCt)}</div>
     <div style="width:30px;text-align:right;font-size:13px;color:var(--text2)">100%</div>
   </div>`;
