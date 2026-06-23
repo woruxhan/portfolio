@@ -1436,23 +1436,25 @@ function renderPremarket(){
   </div>`;
 
   usStocks.forEach(h=>{
-    const price=pmPrices[h.id];
+    const pmData=pmPrices[h.id];
+    const price=pmData?.price||null;
+    const prevClose=pmData?.prevClose||null;
     const priceStr=price?'US$'+price.toFixed(2):'--';
 
-    // vs cost
+    // vs cost - TWD_US: cost is TWD/share, price is USD -> convert price to TWD
     let vsCostStr='--', vsCostCls='';
     if(price){
-      const pct=(price-h.cost)/h.cost*100;
+      const priceCmp = h.cur==='TWD_US' ? price*(fx.USD||32.5) : price;
+      const pct=(priceCmp-h.cost)/h.cost*100;
       vsCostCls=pct>0?'pos':pct<0?'neg':'';
       vsCostStr=sign(pct)+pct.toFixed(1)+'%';
     }
 
-    // vs prev close: we don't have prev close separately,
-    // show change vs cost as main indicator
-    // If mp exists use it as prev close proxy
+    // vs prev close: use Finnhub pc field, fallback to manual mp
     let vsYestStr='--', vsYestCls='';
-    if(price&&h.mp){
-      const pct=(price-h.mp)/h.mp*100;
+    const pc = prevClose || h.mp || null;
+    if(price && pc){
+      const pct=(price-pc)/pc*100;
       vsYestCls=pct>0?'pos':pct<0?'neg':'';
       vsYestStr=sign(pct)+pct.toFixed(1)+'%';
     }
