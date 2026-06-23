@@ -176,7 +176,7 @@ header h1{font-size:17px;font-weight:600;}
 <body>
 <div class="safe-top"></div>
 <header>
-  <div style="font-size:12px;color:var(--text2)">Portfolio <span style="font-size:10px;color:var(--text3)">v2.5</span></div>
+  <div style="font-size:12px;color:var(--text2)">Portfolio <span style="font-size:10px;color:var(--text3)">v2.6</span></div>
   <h1 id="page-title">總覽</h1>
   <div class="utime" id="utime"></div>
 </header>
@@ -275,6 +275,25 @@ header h1{font-size:17px;font-weight:600;}
   <div class="safe-bottom"></div>
 </div>
 
+<!-- PAGE: 盤前 -->
+<div class="page" id="page-premarket">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+    <div>
+      <div style="font-size:15px;font-weight:600;color:var(--text);">🌙 美股盤前報價</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:2px;" id="pm-time">--</div>
+    </div>
+    <button class="rbtn" id="pm-btn" onclick="fetchPremarket()">
+      <span id="pm-icon">↻</span><span id="pm-text"> 更新</span>
+    </button>
+  </div>
+  <div id="pm-session-warn" style="display:none;background:var(--card);border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--text2);"></div>
+  <div class="card" id="pm-list"><div class="empty">點擊更新取得盤前報價</div></div>
+  <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:8px;">
+    盤前時段：台灣時間 17:00–22:30（夏令）/ 18:00–23:30（冬令）
+  </div>
+  <div class="safe-bottom"></div>
+</div>
+
 <!-- PAGE: 設定 -->
 <div class="page" id="page-settings">
   <div class="stitle">報價</div>
@@ -341,6 +360,9 @@ header h1{font-size:17px;font-weight:600;}
   </div>
   <div class="tab" id="tab-target"   onclick="switchTab('target')">
     <div class="tab-icon">🎯</div><div class="tab-label">目標</div>
+  </div>
+  <div class="tab" id="tab-premarket" onclick="switchTab('premarket')">
+    <div class="tab-icon">🌙</div><div class="tab-label">盤前</div>
   </div>
   <div class="tab" id="tab-settings" onclick="switchTab('settings')">
     <div class="tab-icon">⚙️</div><div class="tab-label">設定</div>
@@ -564,15 +586,16 @@ function pad(n){return String(n).padStart(2,'0');}
 
 // ── Tab ──
 function switchTab(name){
-  ['overview','records','target','settings'].forEach(t=>{
+  ['overview','records','target','premarket','settings'].forEach(t=>{
     document.getElementById('page-'+t).classList.toggle('active',t===name);
     document.getElementById('tab-'+t).classList.toggle('active',t===name);
   });
-  const titles={overview:'總覽',records:'賣出紀錄',target:'目標管理',settings:'設定'};
+  const titles={overview:'總覽',records:'賣出紀錄',target:'目標管理',premarket:'盤前報價',settings:'設定'};
   document.getElementById('page-title').textContent=titles[name];
   if(name==='target') renderTarget();
   if(name==='settings'){renderFX();renderTargetInputs();}
   if(name==='records') renderRecords();
+  if(name==='premarket') initPremarket();
 }
 
 // ── Render overview ──
@@ -1328,6 +1351,125 @@ function parseCSV(text){
     row.push(cur);rows.push(row);
   }
   return rows;
+}
+
+
+// ── Premarket ──
+let pmPrices={}, pmBusy=false;
+
+function getTaiwanHour(){
+  const now=new Date();
+  // UTC+8
+  const tw=new Date(now.getTime()+8*3600000);
+  return tw.getUTCHours()+(tw.getUTCMinutes()/60);
+}
+
+function getSessionInfo(){
+  const h=getTaiwanHour();
+  // Summer (DST): 17:00-22:30 TW = 09:00-16:30 ET
+  // Winter: 18:00-23:30 TW
+  // Pre-market approx: 17:00-22:30 (summer) / 18:00-23:30 (winter)
+  // We just show a note; Finnhub returns latest price regardless
+  if(h>=17&&h<22.5) return {active:true,label:'盤前時段（夏令 17:00–22:30）'};
+  if(h>=18&&h<23.5) return {active:true,label:'盤前時段（冬令 18:00–23:30）'};
+  if(h>=22.5||h<5)  return {active:false,label:'美股盤中或盤後時段，顯示最新成交價'};
+  return {active:false,label:'美股尚未開盤，顯示前收盤價'};
+}
+
+function initPremarket(){
+  const now=new Date();
+  const tw=new Date(now.getTime()+8*3600000);
+  const hhmm=pad(tw.getUTCHours())+':'+pad(tw.getUTCMinutes());
+  document.getElementById('pm-time').textContent='台灣時間 '+hhmm;
+  const info=getSessionInfo();
+  const warn=document.getElementById('pm-session-warn');
+  if(!info.active){
+    warn.style.display='block';
+    warn.textContent='⚠️ '+info.label;
+  }else{
+    warn.style.display='none';
+  }
+  renderPremarket();
+}
+
+async function fetchPremarket(){
+  if(pmBusy)return;
+  pmBusy=true;
+  const btn=document.getElementById('pm-btn');
+  btn.classList.add('busy');
+  document.getElementById('pm-icon').innerHTML='<span class="rspin"></span>';
+  document.getElementById('pm-text').textContent=' 更新中...';
+
+  const usStocks=holdings.filter(h=>h.type!=='cash'&&(h.cur==='USD'||h.cur==='TWD_US'));
+  for(const h of usStocks){
+    try{
+      const r=await fetch(`${API_BASE}/api/quote?symbol=${h.sym}&market=us`);
+      const d=await r.json();
+      if(d.price) pmPrices[h.id]=d.price;
+    }catch(e){}
+    await new Promise(res=>setTimeout(res,150));
+  }
+
+  const now=new Date();
+  const tw=new Date(now.getTime()+8*3600000);
+  document.getElementById('pm-time').textContent=
+    '台灣時間 '+pad(tw.getUTCHours())+':'+pad(tw.getUTCMinutes())+':'+pad(tw.getUTCSeconds());
+
+  renderPremarket();
+  btn.classList.remove('busy');
+  document.getElementById('pm-icon').textContent='↻';
+  document.getElementById('pm-text').textContent=' 更新';
+  pmBusy=false;
+}
+
+function renderPremarket(){
+  const usStocks=holdings.filter(h=>h.type!=='cash'&&(h.cur==='USD'||h.cur==='TWD_US'));
+  if(!usStocks.length){
+    document.getElementById('pm-list').innerHTML='<div class="empty">尚無美股持倉</div>';
+    return;
+  }
+  let html=`<div style="display:flex;align-items:center;padding:6px 14px;gap:8px;border-bottom:.5px solid var(--border);">
+    <div style="flex:1;font-size:11px;color:var(--text3);">代號</div>
+    <div style="width:72px;text-align:right;font-size:11px;color:var(--text3);">盤前價</div>
+    <div style="width:60px;text-align:right;font-size:11px;color:var(--text3);">vs 昨收</div>
+    <div style="width:60px;text-align:right;font-size:11px;color:var(--text3);">vs 成本</div>
+  </div>`;
+
+  usStocks.forEach(h=>{
+    const price=pmPrices[h.id];
+    const priceStr=price?'US$'+price.toFixed(2):'--';
+
+    // vs cost
+    let vsCostStr='--', vsCostCls='';
+    if(price){
+      const pct=(price-h.cost)/h.cost*100;
+      vsCostCls=pct>0?'pos':pct<0?'neg':'';
+      vsCostStr=sign(pct)+pct.toFixed(1)+'%';
+    }
+
+    // vs prev close: we don't have prev close separately,
+    // show change vs cost as main indicator
+    // If mp exists use it as prev close proxy
+    let vsYestStr='--', vsYestCls='';
+    if(price&&h.mp){
+      const pct=(price-h.mp)/h.mp*100;
+      vsYestCls=pct>0?'pos':pct<0?'neg':'';
+      vsYestStr=sign(pct)+pct.toFixed(1)+'%';
+    }
+
+    html+=`<div style="display:flex;align-items:center;padding:11px 14px;gap:8px;border-bottom:.5px solid var(--border);">
+      <div style="flex:1;">
+        <div style="font-size:14px;font-weight:500;color:var(--text);">${h.sym}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:1px;">${h.name||h.sym}</div>
+      </div>
+      <div style="width:72px;text-align:right;font-size:14px;font-weight:500;color:var(--text);">${priceStr}</div>
+      <div style="width:60px;text-align:right;font-size:13px;" class="${vsYestCls}">${vsYestStr}</div>
+      <div style="width:60px;text-align:right;font-size:13px;" class="${vsCostCls}">${vsCostStr}</div>
+    </div>`;
+  });
+
+  // remove last border
+  document.getElementById('pm-list').innerHTML=html;
 }
 
 load();render();renderFX();fetchFX();initDrag();
