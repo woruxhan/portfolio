@@ -1401,11 +1401,19 @@ async function fetchPremarket(){
   document.getElementById('pm-text').textContent=' 更新中...';
 
   const usStocks=holdings.filter(h=>h.type!=='cash'&&(h.cur==='USD'||h.cur==='TWD_US'));
+  if(!usStocks.length){
+    document.getElementById('pm-list').innerHTML='<div class="empty">尚無美股持倉（貨幣需為 USD 或 TWD 複委託）</div>';
+    btn.classList.remove('busy');
+    document.getElementById('pm-icon').textContent='↻';
+    document.getElementById('pm-text').textContent=' 更新';
+    pmBusy=false;
+    return;
+  }
   for(const h of usStocks){
     try{
       const r=await fetch(`${API_BASE}/api/quote?symbol=${h.sym}&market=us`);
       const d=await r.json();
-      if(d.price) pmPrices[h.id]=d.price;
+      if(d.price) pmPrices[String(h.id)]={price:d.price, prevClose:d.prevClose||null};
     }catch(e){}
     await new Promise(res=>setTimeout(res,150));
   }
@@ -1436,7 +1444,7 @@ function renderPremarket(){
   </div>`;
 
   usStocks.forEach(h=>{
-    const pmData=pmPrices[h.id];
+    const pmData=pmPrices[String(h.id)];
     const price=pmData?.price||null;
     const prevClose=pmData?.prevClose||null;
     const priceStr=price?'US$'+price.toFixed(2):'--';
